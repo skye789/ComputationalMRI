@@ -9,7 +9,7 @@ kspace = mat['kdata1']
 
 
 ###### 1. FFT reconstruction of Cartesian MRI data
-def fft2c(img):
+def fft2c(img): #img原点在左上
     kspace = np.fft.fft2(img)
     kspace = np.fft.fftshift(kspace)
     return kspace

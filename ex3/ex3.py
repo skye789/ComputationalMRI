@@ -8,7 +8,7 @@ from numpy.ma import exp
 mat = scipy.io.loadmat('kdata_phase_error_severe.mat')
 kspace_lack = mat['kdata']  # 512×288
 mat0 = scipy.io.loadmat('kdata1.mat')
-kspace = mat0['kdata1']
+kspace_ori = mat0['kdata1']
 
 #######################################################
 ###### 1. Hermitian symmetry reconstructed image ######
@@ -25,30 +25,28 @@ def ifft2c(kspace):
     return img
 
 
-rows, cols = np.shape(kspace_lack)
-zeros_pad = np.zeros((rows, 512 - cols))
+rows, cols = np.shape(kspace_lack)  #512, 288
+# real_cols = cols/9/16
+zeros_pad = np.zeros((rows, rows - cols))
 kspace_zeroPad = np.concatenate((kspace_lack, zeros_pad), axis=1)
 image_zeroPad = ifft2c(kspace_zeroPad)
-# a = kspace_lack[0,255]
-# b = kspace_lack[-1,256]
-# c = kspace_lack[0,256]
-# print(a,b,c) #b or c is not conjungate complext of a?????
 
-kspace_halfF = np.fliplr(kspace_lack[:, :512 - cols].conjugate())  # flip left right
-kspace_halfF = np.concatenate((kspace_lack, kspace_halfF), axis=1)
-image_Hemitian = ifft2c(kspace_halfF)
 
-# kspace_halfF2 = np.flip(kspace_lack[:, :512 - cols].conjugate())  # flip left right and upside down
-# kspace_halfF2 = np.concatenate((kspace_lack, kspace_halfF2), axis=1)
-# image_Hemitian2 = ifft2c(kspace_halfF2)
+# kspace_halfF = np.fliplr(kspace_lack[:, :512 - cols].conjugate())  # flip left right
+# kspace_halfF = np.concatenate((kspace_lack, kspace_halfF), axis=1)
+# image_Hemitian = ifft2c(kspace_halfF)
+
+kspace_halfF2 = np.flip(kspace_lack[:, :512 - cols].conjugate())  # flip left right and upside down
+kspace_halfF2 = np.concatenate((kspace_lack, kspace_halfF2), axis=1)
+image_Hemitian2 = ifft2c(kspace_halfF2)
 
 
 # plt.figure()
 # plt.subplot(121)
-# plt.imshow(np.abs(image_zeroPad), cmap='gray')
+# plt.imshow(np.abs(np.real(image_zeroPad)), cmap='gray')
 # plt.title('zero_padding image')
 # plt.subplot(122)
-# plt.imshow(np.abs(image_Hemitian), cmap='gray')
+# plt.imshow(np.abs(image_zeroPad), cmap='gray')
 # plt.title('Hermitian symmetry reconstructed image')
 # plt.show()
 
@@ -73,11 +71,11 @@ def phase_sym_ham(kspace_asym):
 
 img_k_cen, phase= phase_sym_ham(kspace_lack)
 
-# plt.figure()
-# plt.plot()
-# plt.imshow(phase, cmap='gray')
-# plt.title('Phase estimation from center kspace')
-# plt.show()
+plt.figure()
+plt.plot()
+plt.imshow(phase, cmap='gray')
+plt.title('Phase estimation from center kspace')
+plt.show()
 
 
 #################################
@@ -90,28 +88,35 @@ def pf_margosian(kspace, N, ftype):
     N: target size of the reconstructed PF dimension
     ftype: k-space filter ('ramp' or 'hamming')
     '''''
-    filter = np.ones((512, 32))
+    filter = np.ones((512, 64))
     if ftype=="ramp":
-        for i in range(32):
-            filter[:, i] = -1 / 32 * i + 1
+        for i in range(64):
+            filter[:, i] = -1 / 64 * i + 1
     elif ftype=="hamming":
-        ham = hamming(64)
-        filter = np.tile(ham[32:], (512, 1))
+        ham = hamming(128)
+        filter = np.tile(ham[64:], (512, 1))
 
     kspace_ramp = np.copy(kspace)
-    kspace_ramp[:, 256:288] = kspace_zeroPad[:, 256:288] * filter
+    kspace_ramp[:, 224:288] = kspace_zeroPad[:, 224:288] * filter
     image_ramp = ifft2c(kspace_ramp)
 
-    img_Margosian = exp((-1j) * phase) * image_ramp
+    img_Margosian = np.real(exp((-1j) * phase) * image_ramp)
+
     return img_Margosian
 
-img_Margosian_ramp = pf_margosian(kspace_zeroPad, N=1, ftype='ramp')
-img_Margosian_ham = pf_margosian(kspace_zeroPad, N=1, ftype='hamming')
+img_Margosian_ramp = pf_margosian(kspace_zeroPad, N=9/16, ftype='ramp')
+img_Margosian_ham = pf_margosian(kspace_zeroPad, N=9/16, ftype='hamming')
 
 # plt.figure()
-# plt.plot()
-# plt.imshow(img_Margosian_ham, cmap='gray')
-# plt.title('Phase estimation from center kspace')
+# plt.subplot(131)
+# plt.imshow(np.abs(image_zeroPad), cmap='gray')
+# plt.title('zero-padding image')
+# plt.subplot(132)
+# plt.imshow(np.abs(img_Margosian_ramp), cmap='gray')
+# plt.title('image recon from Margosian(ramp)')
+# plt.subplot(133)
+# plt.imshow(np.abs(img_Margosian_ham), cmap='gray')
+# plt.title('image recon from Margosian(hamming)')
 # plt.show()
 
 
@@ -125,45 +130,69 @@ def pf_POCS(kspace, N, num_iter):
     N: target size of the reconstructed PF dimension
     num_iter: number of iteration
     '''''
-    phase_POSC = exp(1j * phase)
     for _ in range(num_iter):
         image = ifft2c(kspace)
-        image_POCS = np.abs(image) * phase_POSC
-        # kspace_tmp = fft2c(image_POCS)
+        image_POCS = np.abs(image) * exp(1j * phase)
         kspace_tmp = np.fft.fft2(image_POCS)
         kspace[:, 288:] = kspace_tmp[:, 288:]
-    return kspace,image_POCS, kspace_tmp
+    return image_POCS, kspace_tmp, kspace
 
-kspaceP,image_POCS, kspace_tmp = pf_POCS(kspace_zeroPad, N=5, num_iter=5)
-
-plt.figure()
-plt.plot()
-plt.subplot(121)
-plt.imshow(np.abs(image_POCS), cmap='gray')
-plt.subplot(122)
-plt.imshow(np.log((np.abs(kspace_tmp))), cmap='gray')
-plt.show()
-
-
-
-
-
-original_image = ifft2c(kspace)
+image_POCS2, _, _ = pf_POCS(kspace_zeroPad, N=5, num_iter=2)
+image_POCS4, _, _ = pf_POCS(kspace_zeroPad, N=5, num_iter=4)
+image_POCS6, _, _ = pf_POCS(kspace_zeroPad, N=5, num_iter=6)
+image_POCS8, kspace_tmp, kspacePOCS = pf_POCS(kspace_zeroPad, N=5, num_iter=8)
+image_POCS10, _, _ = pf_POCS(kspace_zeroPad, N=5, num_iter=10)
 
 # plt.figure()
-# plt.subplot(231)
-# plt.imshow(np.abs(np.abs(original_image)), cmap='gray')  #??用np.real不行， 用np.abs(np.real())出来的图像颜色变了
-# plt.title('original ')
-# plt.subplot(232)
-# plt.imshow(np.abs(image_Hemitian), cmap='gray')
-# plt.title('Hermitian ')
-# plt.subplot(234)
-# plt.imshow(np.abs(img_Margosian_ramp), cmap='gray')
-# plt.title('Margosian(ramp)')
-# plt.subplot(235)
-# plt.imshow(np.abs(img_Margosian_ham), cmap='gray')
-# plt.title('Margosian(hamming)')
-# plt.subplot(236)
-# plt.imshow(np.abs(image_POCS), cmap='gray')
-# plt.title('Pocs ')
+# plt.plot()
+# plt.subplot(121)
+# plt.imshow(np.abs(image_POCS6), cmap='gray')
+# plt.title('image reconstructed from POCS ')
+# plt.subplot(122)
+# plt.imshow(np.log((np.abs(kspacePOCS))), cmap='gray')
+# plt.title('reconstructed kspace ')
 # plt.show()
+
+# plt.figure()
+# plt.plot()
+# plt.subplot(231)
+# plt.imshow(np.abs(image_POCS2), cmap='gray')
+# plt.title('image recon from POCS,iter=2 ')
+# plt.subplot(232)
+# plt.imshow((np.abs(image_POCS4)), cmap='gray')
+# plt.title('image recon from POCS,iter=4 ')
+# plt.subplot(233)
+# plt.imshow((np.abs(image_POCS6)), cmap='gray')
+# plt.title('image recon from POCS,iter=6 ')
+# plt.subplot(234)
+# plt.imshow((np.abs(image_POCS8)), cmap='gray')
+# plt.title('image recon from POCS,iter=8 ')
+# plt.subplot(235)
+# plt.imshow((np.abs(image_POCS10)), cmap='gray')
+# plt.title('image recon from POCS,iter=10 ')
+# plt.show()
+
+
+
+original_image = ifft2c(kspace_ori)
+
+plt.figure()
+plt.subplot(231)
+plt.imshow(np.abs(np.abs(original_image)), cmap='gray')  #??用np.real不行， 用np.abs(np.real())出来的图像颜色变了
+plt.title('original ')
+plt.subplot(232)
+plt.imshow(np.abs(image_zeroPad), cmap='gray')
+plt.title('Zero padding')
+plt.subplot(233)
+plt.imshow(np.abs(image_Hemitian2), cmap='gray')
+plt.title('Hermitian ')
+plt.subplot(234)
+plt.imshow(np.abs(img_Margosian_ramp), cmap='gray')
+plt.title('Margosian(ramp)')
+plt.subplot(235)
+plt.imshow(np.abs(img_Margosian_ham), cmap='gray')
+plt.title('Margosian(hamming)')
+plt.subplot(236)
+plt.imshow(np.abs(image_POCS10), cmap='gray')
+plt.title('Pocs, iter=10')
+plt.show()
