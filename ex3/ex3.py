@@ -6,38 +6,38 @@ from numpy.ma import exp
 
 # load matlab file
 mat = scipy.io.loadmat('kdata_phase_error_severe.mat')
-kspace_lack = mat['kdata']  # 512×288
+kspace = mat['kdata']  # 512×288
 mat0 = scipy.io.loadmat('kdata1.mat')
 kspace_ori = mat0['kdata1']
 
 #######################################################
 ###### 1. Hermitian symmetry reconstructed image ######
 #######################################################
-def fft2c(img):
-    kspace = np.fft.fft2(img)
-    kspace = np.fft.fftshift(kspace)  #????????????
+def fft2c(image):
+    image = np.fft.fftshift(image)
+    kspace = np.fft.fft2(image)
+    kspace = np.fft.ifftshift(kspace)
     return kspace
 
-
 def ifft2c(kspace):
+    kspace = np.fft.ifftshift(kspace)
     image = np.fft.ifft2(kspace)
-    img = np.fft.ifftshift(image)
-    return img
+    image = np.fft.fftshift(image)
+    return image
 
-
-rows, cols = np.shape(kspace_lack)  #512, 288
-# real_cols = cols/9/16
-zeros_pad = np.zeros((rows, rows - cols))
-kspace_zeroPad = np.concatenate((kspace_lack, zeros_pad), axis=1)
+rows, cols = np.shape(kspace)  #512, 288
+recon_cols = int(cols/9*16)  # 512
+zeros_pad = np.zeros((rows, recon_cols - cols))
+kspace_zeroPad = np.concatenate((kspace, zeros_pad), axis=1)
 image_zeroPad = ifft2c(kspace_zeroPad)
 
 
-# kspace_halfF = np.fliplr(kspace_lack[:, :512 - cols].conjugate())  # flip left right
-# kspace_halfF = np.concatenate((kspace_lack, kspace_halfF), axis=1)
+# kspace_halfF = np.fliplr(kspace[:, :512 - cols].conjugate())  # flip left right
+# kspace_halfF = np.concatenate((kspace, kspace_halfF), axis=1)
 # image_Hemitian = ifft2c(kspace_halfF)
 
-kspace_halfF2 = np.flip(kspace_lack[:, :512 - cols].conjugate())  # flip left right and upside down
-kspace_halfF2 = np.concatenate((kspace_lack, kspace_halfF2), axis=1)
+kspace_halfF2 = np.flip(kspace[:, :recon_cols - cols].conjugate())  # flip left right and upside down
+kspace_halfF2 = np.concatenate((kspace, kspace_halfF2), axis=1)
 image_Hemitian2 = ifft2c(kspace_halfF2)
 
 
@@ -46,7 +46,7 @@ image_Hemitian2 = ifft2c(kspace_halfF2)
 # plt.imshow(np.abs(np.real(image_zeroPad)), cmap='gray')
 # plt.title('zero_padding image')
 # plt.subplot(122)
-# plt.imshow(np.abs(image_zeroPad), cmap='gray')
+# plt.imshow(np.abs(image_Hemitian2), cmap='gray')
 # plt.title('Hermitian symmetry reconstructed image')
 # plt.show()
 
@@ -60,22 +60,25 @@ def phase_sym_ham(kspace_asym):
               center of k-space
     kspace: asymmetric k-space data
     '''''
-    kspace_cen = kspace_asym[:, 256 - 32:256 + 32]  # 512×64
+    num_row, num_col = kspace_asym.shape #512, 288
+    num_realCol = int(num_col/9*16) #512
+    asy_cols = num_col - num_realCol//2  #32
+    kspace_cen = kspace_asym[:, num_realCol//2 - asy_cols:num_realCol//2 + asy_cols]  # 512×64
     kspace_cen_pad = np.pad(kspace_cen, ((0, 0), (224, 224)), 'constant', constant_values=(0, 0))
-    ham_win = np.sqrt(np.outer(hamming(512), hamming(64)))
+    ham_win = np.sqrt(np.outer(hamming(num_realCol), hamming(asy_cols*2)))
     ham_win_pad = np.pad(ham_win, ((0, 0), (224, 224)), 'constant', constant_values=(0, 0))
     img_k_cen = ifft2c(kspace_cen_pad * ham_win_pad)
     phase = np.angle(img_k_cen)
 
     return img_k_cen, phase
 
-img_k_cen, phase= phase_sym_ham(kspace_lack)
+img_k_cen, phase= phase_sym_ham(kspace)
 
-plt.figure()
-plt.plot()
-plt.imshow(phase, cmap='gray')
-plt.title('Phase estimation from center kspace')
-plt.show()
+# plt.figure()
+# plt.plot()
+# plt.imshow(phase, cmap='gray')
+# plt.title('Phase estimation from center kspace')
+# plt.show()
 
 
 #################################
@@ -88,24 +91,32 @@ def pf_margosian(kspace, N, ftype):
     N: target size of the reconstructed PF dimension
     ftype: k-space filter ('ramp' or 'hamming')
     '''''
-    filter = np.ones((512, 64))
-    if ftype=="ramp":
-        for i in range(64):
-            filter[:, i] = -1 / 64 * i + 1
-    elif ftype=="hamming":
-        ham = hamming(128)
-        filter = np.tile(ham[64:], (512, 1))
+    num_row, num_col = kspace.shape  #512, 288
+    num_realCol = int(num_col/N) #512
+    asy_cols = num_col - num_realCol//2  #32
 
-    kspace_ramp = np.copy(kspace)
-    kspace_ramp[:, 224:288] = kspace_zeroPad[:, 224:288] * filter
-    image_ramp = ifft2c(kspace_ramp)
+    zeros_pad = np.zeros((rows, num_realCol - num_col))
+    kspace_zeroPad = np.concatenate((kspace, zeros_pad), axis=1)
+
+    filter = np.ones((num_row, asy_cols*2))
+    if ftype=="ramp":
+        for i in range( asy_cols*2):
+            filter[:, i] = -1 / (asy_cols*2) * i + 1
+    elif ftype=="hamming":
+        ham = hamming(asy_cols*4)
+        filter = np.tile(ham[asy_cols*2:], (num_row, 1))
+
+    kspace_fil = np.copy(kspace_zeroPad)
+    kspace_fil[:, num_realCol//2-asy_cols:num_realCol//2+asy_cols] = \
+        kspace_zeroPad[:, num_realCol//2-asy_cols:num_realCol//2+asy_cols] * filter
+    image_ramp = ifft2c(kspace_fil)
 
     img_Margosian = np.real(exp((-1j) * phase) * image_ramp)
 
     return img_Margosian
 
-img_Margosian_ramp = pf_margosian(kspace_zeroPad, N=9/16, ftype='ramp')
-img_Margosian_ham = pf_margosian(kspace_zeroPad, N=9/16, ftype='hamming')
+img_Margosian_ramp = pf_margosian(kspace, N=9/16, ftype='ramp')
+img_Margosian_ham = pf_margosian(kspace, N=9/16, ftype='hamming')
 
 # plt.figure()
 # plt.subplot(131)
@@ -130,18 +141,25 @@ def pf_POCS(kspace, N, num_iter):
     N: target size of the reconstructed PF dimension
     num_iter: number of iteration
     '''''
-    for _ in range(num_iter):
-        image = ifft2c(kspace)
-        image_POCS = np.abs(image) * exp(1j * phase)
-        kspace_tmp = np.fft.fft2(image_POCS)
-        kspace[:, 288:] = kspace_tmp[:, 288:]
-    return image_POCS, kspace_tmp, kspace
+    num_row, num_col = kspace.shape  #512, 288
+    num_realCol = int(num_col/N) #512
+    asy_cols = num_col - num_realCol//2  #32
 
-image_POCS2, _, _ = pf_POCS(kspace_zeroPad, N=5, num_iter=2)
-image_POCS4, _, _ = pf_POCS(kspace_zeroPad, N=5, num_iter=4)
-image_POCS6, _, _ = pf_POCS(kspace_zeroPad, N=5, num_iter=6)
-image_POCS8, kspace_tmp, kspacePOCS = pf_POCS(kspace_zeroPad, N=5, num_iter=8)
-image_POCS10, _, _ = pf_POCS(kspace_zeroPad, N=5, num_iter=10)
+    zeros_pad = np.zeros((rows, num_realCol - num_col))
+    kspace_zeroPad = np.concatenate((kspace, zeros_pad), axis=1)
+
+    for _ in range(num_iter):
+        image = ifft2c(kspace_zeroPad)
+        image_POCS = np.abs(image) * exp(1j * phase)
+        kspace_tmp = fft2c(image_POCS)
+        kspace_zeroPad[:, num_realCol//2+asy_cols:] = kspace_tmp[:, num_realCol//2+asy_cols:]
+    return image_POCS, kspace_tmp, kspace_zeroPad
+
+image_POCS2, _, _ = pf_POCS(kspace, N=9/16, num_iter=2)
+image_POCS4, _, _ = pf_POCS(kspace, N=9/16, num_iter=4)
+image_POCS6, _, _ = pf_POCS(kspace, N=9/16, num_iter=6)
+image_POCS8, kspace_tmp, kspacePOCS = pf_POCS(kspace, N=9/16, num_iter=8)
+image_POCS10, _, _ = pf_POCS(kspace, N=9/16, num_iter=10)
 
 # plt.figure()
 # plt.plot()
@@ -153,46 +171,69 @@ image_POCS10, _, _ = pf_POCS(kspace_zeroPad, N=5, num_iter=10)
 # plt.title('reconstructed kspace ')
 # plt.show()
 
-# plt.figure()
-# plt.plot()
-# plt.subplot(231)
-# plt.imshow(np.abs(image_POCS2), cmap='gray')
-# plt.title('image recon from POCS,iter=2 ')
-# plt.subplot(232)
-# plt.imshow((np.abs(image_POCS4)), cmap='gray')
-# plt.title('image recon from POCS,iter=4 ')
-# plt.subplot(233)
-# plt.imshow((np.abs(image_POCS6)), cmap='gray')
-# plt.title('image recon from POCS,iter=6 ')
-# plt.subplot(234)
-# plt.imshow((np.abs(image_POCS8)), cmap='gray')
-# plt.title('image recon from POCS,iter=8 ')
-# plt.subplot(235)
-# plt.imshow((np.abs(image_POCS10)), cmap='gray')
-# plt.title('image recon from POCS,iter=10 ')
-# plt.show()
+plt.figure()
+plt.plot()
+plt.subplot(231)
+plt.imshow(np.abs(image_POCS2), cmap='gray')
+plt.title('image recon from POCS,iter=2 ')
+plt.subplot(232)
+plt.imshow((np.abs(image_POCS4)), cmap='gray')
+plt.title('image recon from POCS,iter=4 ')
+plt.subplot(233)
+plt.imshow((np.abs(image_POCS6)), cmap='gray')
+plt.title('image recon from POCS,iter=6 ')
+plt.subplot(234)
+plt.imshow((np.abs(image_POCS8)), cmap='gray')
+plt.title('image recon from POCS,iter=8 ')
+plt.subplot(235)
+plt.imshow((np.abs(image_POCS10)), cmap='gray')
+plt.title('image recon from POCS,iter=10 ')
+plt.show()
 
 
 
 original_image = ifft2c(kspace_ori)
 
+# plt.figure()
+# plt.subplot(231)
+# plt.imshow(np.abs(original_image), cmap='gray')
+# plt.title('original ')
+# plt.subplot(232)
+# plt.imshow(np.abs(image_zeroPad), cmap='gray')
+# plt.title('Zero padding')
+# plt.subplot(233)
+# plt.imshow(np.abs(image_Hemitian2), cmap='gray')
+# plt.title('Hermitian ')
+# plt.subplot(234)
+# plt.imshow(np.abs(img_Margosian_ramp), cmap='gray')
+# plt.title('Margosian(ramp)')
+# plt.subplot(235)
+# plt.imshow(np.abs(img_Margosian_ham), cmap='gray')
+# plt.title('Margosian(hamming)')
+# plt.subplot(236)
+# plt.imshow(np.abs(image_POCS10), cmap='gray')
+# plt.title('Pocs, iter=10')
+# plt.show()
+a = np.abs(img_Margosian_ham)-np.real(original_image)
+b = np.abs(image_POCS10)-np.abs(original_image)
+##show the residual artifact
 plt.figure()
 plt.subplot(231)
-plt.imshow(np.abs(np.abs(original_image)), cmap='gray')  #??用np.real不行， 用np.abs(np.real())出来的图像颜色变了
+plt.imshow(np.abs(original_image), cmap='gray')
 plt.title('original ')
 plt.subplot(232)
-plt.imshow(np.abs(image_zeroPad), cmap='gray')
-plt.title('Zero padding')
+plt.imshow(np.abs(image_zeroPad)-np.abs(original_image), cmap='gray')
+plt.title('Residual artifact from Zero padding')
 plt.subplot(233)
-plt.imshow(np.abs(image_Hemitian2), cmap='gray')
-plt.title('Hermitian ')
+plt.imshow(np.abs(image_Hemitian2)-np.abs(original_image), cmap='gray')
+plt.title('Residual artifact from Hermitian ')
 plt.subplot(234)
-plt.imshow(np.abs(img_Margosian_ramp), cmap='gray')
-plt.title('Margosian(ramp)')
+plt.imshow(np.abs(img_Margosian_ramp)-np.abs(original_image), cmap='gray')
+plt.title('Residual artifact from Margosian(ramp)')
 plt.subplot(235)
-plt.imshow(np.abs(img_Margosian_ham), cmap='gray')
-plt.title('Margosian(hamming)')
+plt.imshow(np.abs(img_Margosian_ham)-np.abs(original_image), cmap='gray')
+plt.title('Residual artifact from Margosian(hamming)')
 plt.subplot(236)
-plt.imshow(np.abs(image_POCS10), cmap='gray')
-plt.title('Pocs, iter=10')
+plt.imshow(np.abs(image_POCS10)-np.abs(original_image), cmap='gray')
+plt.title('Residual artifact from Pocs, iter=10')
 plt.show()
