@@ -1,9 +1,14 @@
-import matplotlib.pyplot
 import scipy.io
 import matplotlib.pyplot as plt
 import numpy as np
 import grid
-import sys
+
+import torch
+import torchkbnufft as tkbn
+from PIL import Image
+
+import os
+os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 
 
 # load matlab file
@@ -165,21 +170,96 @@ img = ifft2c(zero_pad)
 #######################################################
 ###### 5.De-apodization ######
 #######################################################
-triangle = [0, 0.5, 1,0.5,0]
-tri = np.fft.fftshift(np.fft.ifft(np.fft.ifftshift(triangle)))
+tri1D = [0, 0.5, 1, 0.5, 0]
+tri2D = np.sqrt(np.outer(tri1D, tri1D))
+pad_w = (sz_overSam2-len(tri1D))//2
 
-# img_tri = np.zeros_like(img_overSam2_crop)
-# for i in range(len(kspace_radial)-4):
-#     img_tri = np.abs(img_overSam2_crop[:, i:i+5])/np.abs(tri)
-# for i in range(len(kspace_radial-4)):
-#     img_tri = img_overSam2_crop[i:i+5,:]/tri
+tri2D_pad0 = np.pad(tri2D, ((pad_w,pad_w+1), (pad_w,pad_w+1)), 'constant', constant_values=0)
+tri_ift0 = ifft2c(tri2D_pad0)
+# print('non-zero num: ',np.nonzero(tri_ift0))
+img_deApo0 = img_overSam2/tri_ift0
 
-# img_deApo = img_overSam2_crop/triangle
+tri2D_pad = np.pad(tri2D, ((pad_w,pad_w+1), (pad_w,pad_w+1)), 'constant', constant_values=0)+1
+tri_ift = ifft2c(tri2D_pad)
+img_deApo = img_overSam2/tri_ift
 
-a = np.abs(img_tri)-np.abs(img_overSam2_crop)
-print(np.nonzero(a))
 plt.subplot(221)
-plt.imshow(np.abs(img_tri), cmap='gray')
+plt.imshow(np.log(np.abs(img_deApo0)),cmap='gray')
 plt.subplot(222)
-plt.imshow(np.abs(img_tri)-np.abs(img_overSam2_crop), cmap='gray')
+plt.imshow(np.abs(tri_ift),cmap='gray')
 plt.show()
+
+
+# plt.subplot(221)
+# plt.plot(np.abs(tri2D_pad))
+# plt.subplot(222)
+# plt.plot((np.abs(tri_ift[384])))
+# plt.show()
+
+
+
+#######################################################
+###### 6. NUFFT toolbox ######
+#######################################################
+'''''
+@conference{muckley:20:tah,
+  author = {M. J. Muckley and R. Stern and T. Murrell and F. Knoll},
+  title = {{TorchKbNufft}: A High-Level, Hardware-Agnostic Non-Uniform Fast {Fourier} Transform},
+  booktitle = {ISMRM Workshop on Data Sampling \& Image Reconstruction},
+  year = 2020,
+  note = {Source code available at https://github.com/mmuckley/torchkbnufft}.
+}
+
+'''
+
+'''''
+spokelength, nspokes = np.shape(kspace_radial)
+
+ga = np.deg2rad(golden_angle_increment)
+kx = np.zeros(shape=(spokelength, nspokes))
+ky = np.zeros(shape=(spokelength, nspokes))
+ky[:, 0] = np.linspace(-np.pi, np.pi, spokelength)
+for i in range(1, nspokes):
+    kx[:, i] = np.cos(ga) * kx[:, i - 1] - np.sin(ga) * ky[:, i - 1]
+    ky[:, i] = np.sin(ga) * kx[:, i - 1] + np.cos(ga) * ky[:, i - 1]
+
+ky = np.transpose(ky)
+kx = np.transpose(kx)
+
+ktraj = np.stack((ky.flatten(), kx.flatten()), axis=0)
+ktraj = torch.tensor(ktraj)
+
+kdata = kspace_radial.transpose()
+kdata = kdata.reshape((1,-1))
+kdata = torch.tensor(kdata).unsqueeze(0)
+
+print('kdata shape: {}'.format(kdata.shape))
+
+
+adjnufft_ob = tkbn.KbNufftAdjoint(im_size=(sz_crop,sz_crop))
+
+image = adjnufft_ob(kdata, ktraj)
+image_blurry_numpy = np.squeeze(image.numpy())
+image_blurry_numpy = image_blurry_numpy.transpose()
+
+dcomp = tkbn.calc_density_compensation_function(ktraj=ktraj, im_size=(sz_crop,sz_crop))
+image_sharp = adjnufft_ob(kdata * dcomp, ktraj)
+image_sharp_numpy = np.squeeze(image_sharp.numpy())
+image_sharp_numpy = image_sharp_numpy.transpose()
+
+
+# plt.subplot(221)
+# plt.imshow(np.abs(img_catesian_grid),cmap='gray')
+# plt.title('Nan: blurry img')
+# plt.subplot(222)
+# plt.imshow(np.abs(img_denComp),cmap='gray')
+# plt.title('Nan: sharp img')
+# plt.subplot(223)
+# plt.imshow(np.abs(image_blurry_numpy),cmap='gray')
+# plt.title('NUFFT toolbox:blurry img')
+# plt.subplot(224)
+# plt.imshow(np.abs(image_sharp_numpy),cmap='gray')
+# plt.title('NUFFT toolbox:sharp img')
+# plt.show()
+
+'''''
