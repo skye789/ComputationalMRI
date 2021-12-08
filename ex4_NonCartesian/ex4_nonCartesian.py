@@ -5,7 +5,7 @@ import grid
 
 import torch
 import torchkbnufft as tkbn
-from PIL import Image
+
 
 import os
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
@@ -173,29 +173,38 @@ img = ifft2c(zero_pad)
 tri1D = [0, 0.5, 1, 0.5, 0]
 tri2D = np.sqrt(np.outer(tri1D, tri1D))
 pad_w = (sz_overSam2-len(tri1D))//2
-
-tri2D_pad0 = np.pad(tri2D, ((pad_w,pad_w+1), (pad_w,pad_w+1)), 'constant', constant_values=0)
-tri_ift0 = ifft2c(tri2D_pad0)
-# print('non-zero num: ',np.nonzero(tri_ift0))
-img_deApo0 = img_overSam2/tri_ift0
-
-tri2D_pad = np.pad(tri2D, ((pad_w,pad_w+1), (pad_w,pad_w+1)), 'constant', constant_values=0)+1
-tri_ift = ifft2c(tri2D_pad)
+tri2D_pad = np.pad(tri2D, ((pad_w+1,pad_w), (pad_w+1,pad_w)), 'constant', constant_values=0)
+tri_ift = ifft2c(tri2D_pad)+10**(-5)
 img_deApo = img_overSam2/tri_ift
+img_deApo_crop = img_deApo[(sz_overSam2-sz_crop)//2:(sz_overSam2+sz_crop)//2,
+                 (sz_overSam2-sz_crop)//2:(sz_overSam2+sz_crop)//2]
 
-plt.subplot(221)
-plt.imshow(np.log(np.abs(img_deApo0)),cmap='gray')
-plt.subplot(222)
+plt.subplot(131)
 plt.imshow(np.abs(tri_ift),cmap='gray')
+plt.title('ifft of kernel')
+plt.subplot(132)
+plt.imshow(np.abs(img_overSam2_crop),cmap='gray')
+plt.title('Without de-apodization,crop')
+plt.subplot(133)
+plt.imshow(np.abs(img_deApo_crop),cmap='gray')
+plt.title('With de-apodization,crop')
 plt.show()
 
-
 # plt.subplot(221)
-# plt.plot(np.abs(tri2D_pad))
+# plt.plot(np.abs(img_overSam2_crop[192,:]))
+# plt.title('Without de-apodization')
 # plt.subplot(222)
-# plt.plot((np.abs(tri_ift[384])))
+# plt.plot(np.abs(img_deApo_crop[192,:]))
+# plt.title('With de-apodization')
+# plt.subplot(223)
+# plt.imshow(np.abs(img_overSam2_crop),cmap='gray')
+# plt.title('Without de-apodization')
+# plt.axis('off')
+# plt.subplot(224)
+# plt.imshow(np.abs(img_deApo_crop),cmap='gray')
+# plt.title('With de-apodization')
+# plt.axis('off')
 # plt.show()
-
 
 
 #######################################################
@@ -212,7 +221,6 @@ plt.show()
 
 '''
 
-'''''
 spokelength, nspokes = np.shape(kspace_radial)
 
 ga = np.deg2rad(golden_angle_increment)
@@ -234,7 +242,6 @@ kdata = kdata.reshape((1,-1))
 kdata = torch.tensor(kdata).unsqueeze(0)
 
 print('kdata shape: {}'.format(kdata.shape))
-
 
 adjnufft_ob = tkbn.KbNufftAdjoint(im_size=(sz_crop,sz_crop))
 
@@ -262,4 +269,3 @@ image_sharp_numpy = image_sharp_numpy.transpose()
 # plt.title('NUFFT toolbox:sharp img')
 # plt.show()
 
-'''''
