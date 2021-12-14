@@ -223,8 +223,8 @@ plt.show()
 
 spokelength, nspokes = np.shape(kspace_radial)
 ga = np.deg2rad(golden_angle_increment)
-kx = np.zeros(shape=(spokelength, nspokes))
-ky = np.zeros(shape=(spokelength, nspokes))
+kx = np.zeros((spokelength, nspokes))
+ky = np.zeros((spokelength, nspokes))
 ky[:, 0] = np.linspace(-np.pi, np.pi, spokelength)
 for i in range(1, nspokes):
     kx[:, i] = np.cos(ga) * kx[:, i - 1] - np.sin(ga) * ky[:, i - 1]
