@@ -104,7 +104,7 @@ ramp2D, kspace_denComp, img_denComp= density_compensation(kspace_catesian_grid)
 #######################################################
 ###### 4. Oversampling ######
 #######################################################
-
+'''''
 kspace_overSamHalf = grid.grid(kspace_radial, trajectory, int(np.shape(kspace_radial)[0]*1.5))
 _,kspace_overSamHalf,_ = density_compensation(kspace_overSamHalf)
 img_overSamHalf = ifft2c(kspace_overSamHalf)
@@ -112,7 +112,7 @@ sz_overSamHalf = len(kspace_overSamHalf)
 sz_crop = len(kspace_radial)
 img_overSamHalf_crop = img_overSamHalf[sz_overSamHalf//2-sz_crop//2: sz_overSamHalf//2+sz_crop//2,
                                        sz_overSamHalf//2-sz_crop//2: sz_overSamHalf//2+sz_crop//2]
-
+'''''
 
 # plt.subplot(131)
 # plt.imshow(np.angle(kspace_overSamHalf),cmap='gray')
