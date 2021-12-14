@@ -222,7 +222,6 @@ plt.show()
 '''
 
 spokelength, nspokes = np.shape(kspace_radial)
-
 ga = np.deg2rad(golden_angle_increment)
 kx = np.zeros(shape=(spokelength, nspokes))
 ky = np.zeros(shape=(spokelength, nspokes))
@@ -230,7 +229,6 @@ ky[:, 0] = np.linspace(-np.pi, np.pi, spokelength)
 for i in range(1, nspokes):
     kx[:, i] = np.cos(ga) * kx[:, i - 1] - np.sin(ga) * ky[:, i - 1]
     ky[:, i] = np.sin(ga) * kx[:, i - 1] + np.cos(ga) * ky[:, i - 1]
-
 ky = np.transpose(ky)
 kx = np.transpose(kx)
 
@@ -240,8 +238,6 @@ ktraj = torch.tensor(ktraj)
 kdata = kspace_radial.transpose()
 kdata = kdata.reshape((1,-1))
 kdata = torch.tensor(kdata).unsqueeze(0)
-
-print('kdata shape: {}'.format(kdata.shape))
 
 adjnufft_ob = tkbn.KbNufftAdjoint(im_size=(sz_crop,sz_crop))
 
