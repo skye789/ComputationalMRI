@@ -1,3 +1,4 @@
+import numpy as np
 ## GRAPPA R=2, kernel 2*3
 def extract(acs, omit = None):
   nyacs, nxacs, nc = acs.shape 
@@ -102,3 +103,4 @@ def grappaR2K2x3(kdata, acs, flag_acs = False):
 
 #interpolated, zp_kdata = grappaR2K2x3(uskspace, acs_data, flag_acs=True)
 #print(interpolated.shape)
+

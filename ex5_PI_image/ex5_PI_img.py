@@ -205,7 +205,7 @@ def sense1d(m_alias_img, c_coil_sen, noise_cov, R):
                     else:
                         C[i, r] = c_w_coil_sen[x, y_-ny, i]
 
-                #calculate 
+                #Calculate the pixel value in reconstructed MRI image
                 tmp0 = np.dot(np.transpose(C.conjugate()), C)
                 if np.linalg.det(tmp0)==0:
                     m = 10**-6
@@ -216,6 +216,7 @@ def sense1d(m_alias_img, c_coil_sen, noise_cov, R):
                 u = np.dot(tmp2, I)
                 g_val = np.sqrt(np.dot(np.diagonal(tmp1), np.diagonal(tmp0)))
 
+            # reconstruct image and g-factor
             for r in range(R):
                 y_ = y + int((ny-s_ny)/2) + r * s_ny
                 if y_ < ny:
@@ -230,12 +231,12 @@ def sense1d(m_alias_img, c_coil_sen, noise_cov, R):
 
 
 R = [2,3,4]
-# img_index = [241, 242, 243,244,245, 246, 247, 248]
 img_index = np.arange(331,340)
 for i,r in enumerate(R):
 
         m_alias_img = get_alias_img(m_coil_ksp, R=r)
         img_sen,g_factor_map = sense1d(m_alias_img, c_coil_sen, noise_cov, R=r)
+        g_factor_map = g_factor_map*brain_msk
 
         plt.subplot(img_index[i])
         plt.imshow(np.abs(img_sen), cmap='gray')
@@ -254,26 +255,32 @@ for i,r in enumerate(R):
         plt.axis('off')
 
         print("Accelatation factor R is %1.0f" %r)
+
         # Average g-factor
-        g_mean = np.sum(np.abs(g_factor_map)*brain_msk)/np.sum(brain_msk)
+        g_mean = np.mean(np.abs(g_factor_map))
         print("Average g-factor is %1.2f " %(g_mean))
 
-        # SNR
-        S = np.sum(np.abs(img_least_square_noiseCorrelation)*brain_msk)/np.sum(brain_msk) #average pixel signal amplitude in brain region
-        N = np.std(np.abs(img_least_square_noiseCorrelation)[45:55,45:55])
-        SNR = S/N
-        print("SNR(non-acc) is %1.5f " % (SNR))
+        # # SNR
+        # S = np.sum(np.abs(img_least_square_noiseCorrelation)*brain_msk)/np.sum(brain_msk) #average pixel signal amplitude in brain region
+        # N = np.std(np.abs(img_least_square_noiseCorrelation)[45:55,45:55])
+        # SNR = S/N
+        # print("SNR(non-acc) is %1.5f " % (SNR))
+        #
+        # S_sense = np.sum(np.abs(img_sen)*brain_msk)/np.sum(brain_msk) #average pixel signal amplitude in brain region
+        # N_sense = np.std(np.abs(img_sen)[45:55,45:55])
+        # SNR_sense = S_sense/N_sense
+        # print("SNR(acc) is %1.5f " % (SNR_sense))
 
-        S_sense = np.sum(np.abs(img_sen)*brain_msk)/np.sum(brain_msk) #average pixel signal amplitude in brain region
-        N_sense = np.std(np.abs(img_sen)[45:55,45:55])
-        SNR_sense = S_sense/N_sense
-        print("SNR(acc) is %1.5f " % (SNR_sense))
+        SNR_loss = (1-1/(g_mean*np.sqrt(r)))*100
+        print("SNR loss is %1.5f" % (SNR_loss), '%')
 
-        # RMSE = mean_squared_error(np.abs(img_least_square_noiseCorrelation).flatten(),  np.abs(img_sen).flatten(), squared=False)
         RMSE = np.sqrt(np.sum((np.abs(img_least_square_noiseCorrelation)-np.abs(img_sen))**2)/np.size(img_sen))
         print("Root Mean Square Error is %1.5f " %(RMSE))
         print()
 
 plt.show()
 
-
+# g_mean = 1.48
+# R = 2
+# SNR_loss = (1 - 1 / (g_mean * np.sqrt(R))) * 100
+# print("SNR loss is %1.5f " % (SNR_loss))
