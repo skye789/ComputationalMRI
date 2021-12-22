@@ -2,14 +2,12 @@ import scipy.io
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.linalg import fractional_matrix_power  #scipy.linalg支持分数矩阵幂：
-from sklearn.metrics import mean_squared_error
+
 
 def ifft2c(kspace):
-    kspace = np.fft.ifftshift(kspace)
     image = np.fft.ifft2(kspace)
-    image = np.fft.fftshift(image)
-    return image
-
+    img = np.fft.ifftshift(image)
+    return img
 
 # load matlab file
 mat = scipy.io.loadmat('data_brain_8coils.mat')
@@ -30,7 +28,6 @@ sz_img = np.size(m_coil_ksp[...,0])
 #######################################################
 ###### 1. Multicoil combination  ######
 #######################################################
-
 noise_cov = np.cov(np.transpose(noise.conjugate())) #8×8
 
 #complex sum
@@ -234,7 +231,7 @@ R = [2,3,4]
 img_index = np.arange(331,340)
 for i,r in enumerate(R):
 
-        m_alias_img = get_alias_img(m_coil_ksp, R=r)
+        m_alias_img = get_alias_img(np.transpose(m_coil_ksp) , R=r)
         img_sen,g_factor_map = sense1d(m_alias_img, c_coil_sen, noise_cov, R=r)
         g_factor_map = g_factor_map*brain_msk
 
@@ -248,7 +245,7 @@ for i,r in enumerate(R):
         plt.title('g factor map R=' + str(r))
         plt.axis('off')
 
-        recon_error = np.abs(img_least_square_noiseCorrelation) - np.abs(img_sen)
+        recon_error = np.abs(img_least_square) - np.abs(img_sen)
         plt.subplot(img_index[i + 6])
         plt.imshow(np.abs(recon_error), cmap='gray')
         plt.title('reconstruction error R=' + str(r))
@@ -274,7 +271,7 @@ for i,r in enumerate(R):
         SNR_loss = (1-1/(g_mean*np.sqrt(r)))*100
         print("SNR loss is %1.5f" % (SNR_loss), '%')
 
-        RMSE = np.sqrt(np.sum((np.abs(img_least_square_noiseCorrelation)-np.abs(img_sen))**2)/np.size(img_sen))
+        RMSE = np.sqrt(np.sum((np.abs(img_least_square)-np.abs(img_sen))**2)/np.size(img_sen))
         print("Root Mean Square Error is %1.5f " %(RMSE))
         print()
 
