@@ -13,7 +13,7 @@ os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 
 # load matlab file
 mat = scipy.io.loadmat('radial_data.mat')
-kspace_radial = mat['k']  # 384×600
+kspace_radial = mat['k']  # 384×600   readout points,spokes
 
 def ifft2c(kspace):
     kspace = np.fft.ifftshift(kspace)
