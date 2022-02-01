@@ -2,7 +2,6 @@ import scipy.io
 import matplotlib.pyplot as plt
 import numpy as np
 from lab8_basics import *
-from scipy.signal import hamming
 
 # load matlab file
 mat = scipy.io.loadmat('data_lab8.mat')
