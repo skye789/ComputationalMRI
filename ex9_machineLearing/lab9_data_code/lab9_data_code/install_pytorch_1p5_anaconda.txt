@@ -1,0 +1,21 @@
+# Update Anaconda
+conda update -n base conda
+
+conda create --name Pytorch_1p5 python=3.7
+source activate Pytorch_1p5
+
+conda install pytorch torchvision -c pytorch
+
+conda install spyder
+conda install matplotlib
+conda install pandas
+conda install scikit-learn
+conda install -c conda-forge opencv 
+conda install -c conda-forge imutils 
+conda install graphviz
+conda install pydotplus
+conda install h5py
+
+source deactivate Pytorch_1p5
+conda remove --name Pytorch_1p5 --all
+
