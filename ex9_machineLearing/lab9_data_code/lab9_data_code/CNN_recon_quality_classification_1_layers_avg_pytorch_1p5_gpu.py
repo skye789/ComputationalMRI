@@ -23,16 +23,15 @@ np.random.seed(123)  # for reproducibility
 from sklearn.preprocessing import LabelEncoder
 from imutils import paths
 import cv2
-from time import time
 from matplotlib import pyplot as plt
 import os,os.path
 from rgb2gray import rgb2gray
-
+from time import time
 import torch
 import torch.nn as nn
 import torch.utils.data as data_utils
 torch.manual_seed(123)  # for reproducibility
- 
+
 plt.close("all")
 
 #%% Set CUDA device
@@ -135,8 +134,8 @@ y_train= le.fit_transform(y_train)
 y_test = le.fit_transform(y_test)
 
 # scale the input image pixels to the range [0,1]
-# x_train= np.array(x_train) / 255.0
-# x_test= np.array(x_test) / 255.0
+x_train= np.array(x_train) / 255.0
+x_test= np.array(x_test) / 255.0
 
 x_train= np.array(x_train)
 x_test= np.array(x_test)
@@ -171,41 +170,102 @@ y_test = torch.Tensor(y_test).long()
 
 #%% Define model
 model_name = "CNN1layers_global_avg"
-class Model(nn.Module):
-    def __init__(self):
-        super(Model, self).__init__()
-        self.conv1 = nn.Conv2d(1,4,(3,3),padding=(1,1))
-        self.ReLU = nn.ReLU()
-        self.pool = nn.MaxPool2d(2,2)
-        self.out = nn.Linear(4,2)
-        # self.Sigmoid = nn.Sigmoid()
-        self.LogSoftmax = nn.LogSoftmax(dim=1)
+if model_name ==  "CNN1layers_global_avg":
+    class Model(nn.Module):
+        def __init__(self):
+            super(Model, self).__init__()
+            self.conv1 = nn.Conv2d(1,16,(5,5),padding=(1,1))
+            self.batchnorm1 = nn.BatchNorm2d(16)
+            self.ReLU = nn.ReLU()
+            self.pool = nn.MaxPool2d(2,2)
+            self.out = nn.Linear(16,2)
+            self.LogSoftmax = nn.LogSoftmax(dim=1)
 
-    def forward(self, x):
-        x = self.ReLU(self.conv1(x))
-        # print("Size after first conv: {}".format(x.shape))
-        x = self.pool(x)
-        # print("Size after first pool: {}".format(x.shape))
-        
-        # global average pooling 2d
-        x = x.mean([2, 3])
-        # print("Size after global average pool: {}".format(x.shape))
-        
-        # x = self.Sigmoid(self.out(x))
-        x = self.LogSoftmax(self.out(x))
-        # print("Size after output layer: {}".format(x.shape))
-        
-        return x
+        def forward(self, x):
+            x = self.ReLU(self.batchnorm1(self.conv1(x)))
+            x = self.pool(x)
 
+            # global average pooling 2d
+            x = x.mean([2, 3])
+
+            x = self.LogSoftmax(self.out(x))
+            return x
+
+if model_name ==  "CNN4layers_global_avg":
+    class Model(nn.Module):
+        def __init__(self):
+            super(Model, self).__init__()
+            length = 5
+            kernel_size = (length,length)
+            pad_size = (length//2,length//2)
+            self.conv1 = nn.Conv2d(1, 16, kernel_size, padding=pad_size)
+            self.batchnorm1 = nn.BatchNorm2d(16)
+            self.ReLU = nn.ReLU()
+            self.pool = nn.MaxPool2d((2, 2))
+
+            self.conv2 = nn.Conv2d(16, 32, kernel_size, padding=pad_size)
+            self.batchnorm2 = nn.BatchNorm2d(32)
+            self.ReLU = nn.ReLU()
+            self.pool = nn.MaxPool2d((2, 2))
+
+            self.conv3 = nn.Conv2d(32, 64, kernel_size, padding=pad_size)
+            self.batchnorm3 = nn.BatchNorm2d(64)
+            self.ReLU = nn.ReLU()
+            self.pool = nn.MaxPool2d((2, 2))
+
+            self.conv4 = nn.Conv2d(64, 128, kernel_size, padding=pad_size)
+            self.batchnorm4 = nn.BatchNorm2d(128)
+            self.ReLU = nn.ReLU()
+            self.pool = nn.MaxPool2d((2, 2))
+
+            self.global_avg_pool = nn.AdaptiveAvgPool2d(1)
+            self.flatten = nn.modules.flatten.Flatten()
+
+            self.FC2 = nn.Linear(128, 2)
+            self.LogSoftmax = nn.LogSoftmax(dim=1)
+
+        def forward(self, x):
+            x = self.ReLU(self.batchnorm1(self.conv1(x)))
+            # print("Size after first conv: {}".format(x.shape))
+            x = self.pool(x)
+            # print("Size after first pool: {}".format(x.shape))
+
+            x = self.ReLU(self.batchnorm2(self.conv2(x)))
+            x = self.pool(x)
+            # print("Size after second pool: {}".format(x.shape))
+
+            x = self.ReLU(self.batchnorm3(self.conv3(x)))
+            x = self.pool(x)
+            # print("Size after third pool: {}".format(x.shape))
+
+            x = self.ReLU(self.batchnorm4(self.conv4(x)))
+            x = self.pool(x)
+            # print("Size after fourth pool: {}".format(x.shape))
+
+            # global average pooling 2d
+            x = x.mean([2, 3])
+            # print("Size after global average pool: {}".format(x.shape))
+
+            # x = self.global_avg_pool(x)
+            x = self.flatten(x)
+            # x = self.FC1(x)
+            # x = self.dropout(x)
+            # x = self.ReLU(x)
+
+            x = self.FC2(x)
+            x = self.LogSoftmax(x)
+            # print("Size after output layer: {}".format(x.shape))
+
+            return x
 #%% Generate instance of model
 model = Model()
 print(model)
 model.to(device)
  
 #%%choose optimizer and loss function
-training_epochs = 1000 # 1000
-lr = 0.001
-batch_size = 10 # 390
+training_epochs = 100 # 1000
+lr = 1e-5
+batch_size = 8 # 390
 # criterion = nn.CrossEntropyLoss()
 criterion = nn.NLLLoss()
 # criterion = nn.BCELoss()
@@ -214,7 +274,10 @@ optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
 #%%Create minibatch data loading for training and validation
 dataloader_train = data_utils.TensorDataset(x_train, y_train)
-dataloader_train = data_utils.DataLoader(dataloader_train, batch_size=batch_size, shuffle=False,num_workers=4)
+dataloader_train = data_utils.DataLoader(dataloader_train, batch_size=batch_size, shuffle=False,num_workers=0)
+
+dataloader_test = data_utils.TensorDataset(x_test, y_test)
+dataloader_test = data_utils.DataLoader(dataloader_test, batch_size=batch_size, shuffle=False,num_workers=0)
 
 #%% Train model
 loss_train = np.zeros(training_epochs)
@@ -232,122 +295,154 @@ for epoch in range(training_epochs):
         loss.backward()
         optimizer.step()
         loss_train[epoch] = loss.cpu().item()
-        # Training data accuracy
+        # # Training data accuracy
         # [dummy, predicted] = torch.max(out.data, 1)
-        # acc_train[epoch] = (torch.sum(local_labels==predicted.cpu()).numpy() / np.size(local_labels.numpy(),0))
- 
-    # Full training set accuracy
-    out_train = model(x_train.cuda())
-    loss = criterion(out_train, y_train.cuda())
-    loss_train[epoch] = loss.cpu().item()
-    [dummy, predicted_train] = torch.max(out_train.data, 1)
-    acc_train[epoch] = (torch.sum(y_train==predicted_train.cpu()).numpy() /nTrainImages)
-    
-    # Full validation set accuracy
-    out_test = model(x_test.cuda())
-    loss = criterion(out_test, y_test.cuda())
-    loss_test[epoch] = loss.cpu().item()
-    [dummy, predicted_test] = torch.max(out_test.data, 1)
-    acc_test[epoch] = ( torch.sum(y_test==predicted_test.cpu()).numpy() /nTestImages)
-    
+        # acc_train[epoch] = (torch.sum(local_labels == predicted.cpu()).numpy() / np.size(local_labels.numpy(), 0))
+
+    with torch.no_grad():
+        # Full validation set accuracy
+        out_test = model(x_test.cuda())
+        loss = criterion(out_test, y_test.cuda())
+        loss_test[epoch] = loss.cpu().item()
+        [dummy, predicted_test] = torch.max(out_test.data, 1)
+        acc_test[epoch] = (torch.sum(y_test==predicted_test.cpu()).numpy() /nTestImages)
+
+        # print ('Epoch {}/{} train loss: {:.3}, val loss: {:.3}'.format(epoch+1, training_epochs, loss_train[epoch], loss_test[epoch]))
     print ('Epoch {}/{} train loss: {:.3}, train acc: {:.3}, val loss: {:.3}, val acc: {:.3}'.format(epoch+1, training_epochs, loss_train[epoch], acc_train[epoch], loss_test[epoch], acc_test[epoch]))
+
 
 print("\nTraining Time (in minutes) =",(time()-time0)/60,"\n")
 
-#%% Evaluate trained model
-# Double check model on train data
-out = model(x_train.cuda())
-[dummy, predicted_train] = torch.max(out.data, 1)
-acc_train_final = (torch.sum(y_train==predicted_train.cpu()).numpy() / nTrainImages)
+
+# with torch.no_grad():
+#     #%% Evaluate trained model
+#     # Double check model on train data
+#     out = model(x_train.cuda())
+#     [dummy, predicted_train] = torch.max(out.data, 1)
+#     acc_train_final = (torch.sum(y_train==predicted_train.cpu()).numpy() / nTrainImages)
+#     print('Evaluation results train data: loss {:.2} acc {:.2}'.format(loss_train[training_epochs-1],acc_train_final))
+
+all_train_predicted = []
+for local_batch, local_labels in dataloader_train:
+    out = model(local_batch.cuda())
+    [_, predicted_train] = torch.max(out.data, 1)
+    predicted_train = predicted_train.cpu()
+    all_train_predicted.append(predicted_train)
+
+all_batch_predicted = torch.cat(all_train_predicted, 0)
+acc_train_final = (torch.sum(y_train==all_batch_predicted).numpy() / nTrainImages)
 print('Evaluation results train data: loss {:.2} acc {:.2}'.format(loss_train[training_epochs-1],acc_train_final))
 
-# Evaluate model on test data
-out_test = model(x_test.cuda())
-[dummy, predicted_test] = torch.max(out_test.data, 1)
-acc_test_final = (torch.sum(y_test==predicted_test.cpu()).numpy() / nTestImages)
-print('Evaluation results test data: loss {:.2} acc {:.2}'.format(loss_test[training_epochs-1],acc_test_final))
- 
-#%% Evaluate predicted labels
-# predictedLabels_round = np.round(predicted_test)
-# predictedLabels_round = np.squeeze(np.transpose(predictedLabels_round.astype(int)))
-# predictedLabels_name = np.round(predicted_test)
-# predictedLabels_name = predictedLabels_name.astype(int)
-# predictedLabels_name = le.inverse_transform(predictedLabels_name)  
-# predictedLabels_name = np.squeeze(predictedLabels_name)
-# testLabels_name = le.inverse_transform(y_test)  
-# correctClassifications = np.transpose(y_test==predictedLabels_round)
 
-#%% Print model's state_dict
-#print("Model's state_dict:")
-#for param_tensor in model.state_dict():
-#    print(param_tensor, "\t", model.state_dict()[param_tensor].size())
+all_test_predicted = []
+for local_batch, local_labels in dataloader_test:
+    out = model(local_batch.cuda())
+    [_, predicted_test] = torch.max(out.data, 1)
+    predicted_test = predicted_test.cpu()
+    all_test_predicted.append(predicted_test)
+
+all_batch_test_predicted = torch.cat(all_test_predicted, 0)
+acc_test_final = (torch.sum(y_test==all_batch_test_predicted).numpy() / nTestImages)
+print('Evaluation results test data: loss {:.2} acc {:.2}'.format(loss_test[training_epochs-1],acc_test_final))
+
+# # Evaluate model on test data
+# out_test = model(x_test.cuda())
+# [dummy, predicted_test] = torch.max(out_test.data, 1)
+# acc_test_final = (torch.sum(y_test==predicted_test.cpu()).numpy() / nTestImages)
+# print('Evaluation results test data: loss {:.2} acc {:.2}'.format(loss_test[training_epochs-1],acc_test_final))
+
+# %% Evaluate predicted labels
+predicted_test = predicted_test.numpy()
+predictedLabels_round = np.round(predicted_test)
+predictedLabels_round = np.squeeze(np.transpose(predictedLabels_round.astype(int)))
+predictedLabels_name = np.round(predicted_test)
+predictedLabels_name = predictedLabels_name.astype(int)
+predictedLabels_name = le.inverse_transform(predictedLabels_name)
+predictedLabels_name = np.squeeze(predictedLabels_name)
+testLabels_name = le.inverse_transform(y_test)
+correctClassifications = np.transpose(y_test==predictedLabels_round)
+
+# %% Print model's state_dict
+print("Model's state_dict:")
+for param_tensor in model.state_dict():
+   print(param_tensor, "\t", model.state_dict()[param_tensor].size())
 
 # Print optimizer's state_dict
-#print("Optimizer's state_dict:")
-#for var_name in optimizer.state_dict():
+# print("Optimizer's state_dict:")
+# for var_name in optimizer.state_dict():
 #    print(var_name, "\t", optimizer.state_dict()[var_name])
-    
-#%% Save trained model state_dic
-#torch.save(model.state_dict(), "./trained_models/" + model_name + "_epochs10.pt")
-#torch.save(optimizer.state_dict(), "./trained_models/" + model_name + "_optimizer_epochs10.pt")
+
+# %% Save trained model state_dic
+# torch.save(model.state_dict(), "./trained_models/" + model_name + "_epochs10.pt")
+# torch.save(optimizer.state_dict(), "./trained_models/" + model_name + "_optimizer_epochs10.pt")
 
 #%% Plot convergence
-if model_name == "CNN1layers_global_avg":
-    # plot_label = "1 conv layer global average"
-    plot_label_train = '1 conv layer global average: train={:.2}'.format(acc_train_final)
-    plot_label_train_val = '1 conv layer global average: train/val={:.2}/{:.2}'.format(acc_train_final,acc_test_final)
-elif model_name == "CNN4layers_global_avg":
-    # plot_label = "4 conv layers global average"
-    plot_label_train = '4 conv layers global average: train={:.2}'.format(acc_train_final)
-    plot_label_train_val = '4 conv layers global average: train/val={:.2}/{:.2}'.format(acc_train_final,acc_test_final)
-elif model_name == "CNN4layers_FC":
-     # plot_label = "4 conv layers fully connected"
-     plot_label_train = '4 conv layers fully connected: train={:.2}'.format(acc_train_final)
-     plot_label_train_val = '4 conv layers fully connected: train/val={:.2}/{:.2}'.format(acc_train_final,acc_test_final)
-else:
-     print('This model does not exist')
-
-N=1
-plt.figure(1)
-plt.plot(np.convolve(acc_train, np.ones((N,))/N, mode='valid'))
-plt.title(plot_label_train)
-plt.ylabel('accuracy')
-plt.xlabel('epoch')
-plt.legend(['training'], loc='lower right')
-plt.ylim(0.4,1.1)
-#plt.show()
-plt.savefig('./training_plots_pytorch/{}_{}_{}_{}_train.png'.format(model_name,training_epochs,recon1,recon2))
+# if model_name == "CNN1layers_global_avg":
+#     # plot_label = "1 conv layer global average"
+#     plot_label_train = '1 conv layer global average: train={:.2}'.format(acc_train_final)
+#     plot_label_train_val = '1 conv layer global average: train/val={:.2}/{:.2}'.format(acc_train_final,acc_test_final)
+# elif model_name == "CNN4layers_global_avg":
+#     # plot_label = "4 conv layers global average"
+#     plot_label_train = '4 conv layers global average: train={:.2}'.format(acc_train_final)
+#     plot_label_train_val = '4 conv layers global average: train/val={:.2}/{:.2}'.format(acc_train_final,acc_test_final)
+# elif model_name == "CNN4layers_FC":
+#      # plot_label = "4 conv layers fully connected"
+#      plot_label_train = '4 conv layers fully connected: train={:.2}'.format(acc_train_final)
+#      plot_label_train_val = '4 conv layers fully connected: train/val={:.2}/{:.2}'.format(acc_train_final,acc_test_final)
+# else:
+#      print('This model does not exist')
 
 plt.figure(2)
-plt.plot(np.convolve(acc_train, np.ones((N,))/N, mode='valid'))
-plt.plot(np.convolve(acc_test , np.ones((N,))/N, mode='valid'))
-plt.title(plot_label_train_val)
-plt.ylabel('accuracy')
+plt.plot(np.arange(training_epochs), loss_train)
+plt.plot(np.arange(training_epochs), loss_test)
+plt.plot()
+plt.title('CNN1layers_global_avg')
+plt.ylabel('loss')
 plt.xlabel('epoch')
 plt.legend(['training', 'validation'], loc='lower right')
-plt.ylim(0.4,1.1)
-#plt.show()
-plt.savefig('./training_plots_pytorch/{}_{}_{}_{}_train_val.png'.format(model_name,training_epochs,recon1,recon2))
+plt.show()
 
-N=10
-plt.figure(3)
-plt.plot(np.convolve(acc_train, np.ones((N,))/N, mode='valid'))
-plt.title(plot_label_train)
-plt.ylabel('accuracy')
-plt.xlabel('epoch')
-plt.legend(['training'], loc='lower right')
-plt.ylim(0.4,1.1)
-#plt.show()
-plt.savefig('./training_plots_pytorch/{}_{}_{}_{}_train_maconv.png'.format(model_name,training_epochs,recon1,recon2))
-
-plt.figure(4)
-plt.plot(np.convolve(acc_train, np.ones((N,))/N, mode='valid'))
-plt.plot(np.convolve(acc_test , np.ones((N,))/N, mode='valid'))
-plt.title(plot_label_train_val)
-plt.ylabel('accuracy')
-plt.xlabel('epoch')
-plt.legend(['training', 'validation'], loc='lower right')
-plt.ylim(0.4,1.1)
-#plt.show()
-plt.savefig('./training_plots_pytorch/{}_{}_{}_{}_train_val_maconv.png'.format(model_name,training_epochs,recon1,recon2))
+# N=1
+# plt.figure(1)
+# plt.plot(np.convolve(acc_train, np.ones((N,))/N, mode='valid'))
+# plt.title('plot_label_train')
+# plt.ylabel('accuracy')
+# plt.xlabel('epoch')
+# plt.legend(['training'], loc='lower right')
+# plt.ylim(0.4,1.1)
+# plt.show()
+# # plt.savefig('./training_plots_pytorch/{}_{}_{}_{}_train.png'.format(model_name,training_epochs,recon1,recon2))
+#
+# plt.figure(2)
+# plt.plot(np.convolve(acc_train, np.ones((N,))/N, mode='valid'))
+# plt.plot(np.convolve(acc_test , np.ones((N,))/N, mode='valid'))
+# plt.title('plot_label_train_val')
+# plt.ylabel('accuracy')
+# plt.xlabel('epoch')
+# plt.legend(['training', 'validation'], loc='lower right')
+# plt.ylim(0.4,1.1)
+# # plt.show()
+# # plt.savefig('./training_plots_pytorch/{}_{}_{}_{}_train_val.png'.format(model_name,training_epochs,recon1,recon2))
+#
+# N=10
+# plt.figure(3)
+# plt.plot(np.convolve(acc_train, np.ones((N,))/N, mode='valid'))
+# plt.title(plot_label_train)
+# plt.ylabel('accuracy')
+# plt.xlabel('epoch')
+# plt.legend(['training'], loc='lower right')
+# plt.ylim(0.4,1.1)
+# # plt.show()
+# # plt.savefig('./training_plots_pytorch/{}_{}_{}_{}_train_maconv.png'.format(model_name,training_epochs,recon1,recon2))
+#
+# plt.figure(4)
+# plt.plot(np.convolve(acc_train, np.ones((N,))/N, mode='valid'))
+# plt.plot(np.convolve(acc_test , np.ones((N,))/N, mode='valid'))
+# plt.title(plot_label_train_val)
+# plt.ylabel('accuracy')
+# plt.xlabel('epoch')
+# plt.legend(['training', 'validation'], loc='lower right')
+# plt.ylim(0.4,1.1)
+# plt.show()
+# plt.savefig('./training_plots_pytorch/{}_{}_{}_{}_train_val_maconv.png'.format(model_name,training_epochs,recon1,recon2))
 
