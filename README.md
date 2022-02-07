@@ -2,7 +2,7 @@ Computational Magnetic Resonance Imaging
 ===
 Intruduction
 ---
-Computational MRI provides a deeper look into computational and machine learning methods 
+Computational MRI provides a deeper look into computational and machine learning methods  
 for the inverse problem of MRI data acquisition and image reconstruction. 
 
 Topics
