@@ -3,7 +3,8 @@ Computational Magnetic Resonance Imaging
 Intruduction
 ---
 Computational MRI provides a deeper look into computational and machine learning methods  
-for the inverse problem of MRI data acquisition and image reconstruction. 
+for the inverse problem of MRI data acquisition and image reconstruction.  
+The course is given by Florian Knoll https://med.nyu.edu/faculty/florian-knoll
 
 Topics
 ---
