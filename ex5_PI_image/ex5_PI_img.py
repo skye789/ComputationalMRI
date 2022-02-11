@@ -148,7 +148,7 @@ def get_alias_img(m_coil_ksp, R):
     return m_alias_img
 
 # m_alias_img_2 = get_alias_img(m_coil_ksp, R=2)
-# m_alias_img_3 = get_alias_img(m_coil_ksp, R=4)
+# m_alias_img_3 = get_alias_img(m_coil_ksp, R=3)
 # m_alias_img_4 = get_alias_img(m_coil_ksp, R=4)
 
 # for i in range(nc):
