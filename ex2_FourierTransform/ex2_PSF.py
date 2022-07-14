@@ -2,6 +2,7 @@ import scipy.io
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy import signal
+from numpy.fft import*
 
 # load matlab file
 mat = scipy.io.loadmat('kdata1.mat')
@@ -9,15 +10,13 @@ kspace = mat['kdata1']
 
 
 ###### 1. FFT reconstruction of Cartesian MRI data
-def fft2c(img): #img原点在左上
-    kspace = np.fft.fft2(img, axes=(0, 1))
-    kspace = np.fft.fftshift(kspace, axes=(0, 1))
+def fft2c(img, dim=(0,1)): #img原点在左上
+    kspace = fftshift(fftn(ifftshift(img, axes=dim), axes=dim), axes=dim)
     return kspace
 
 
-def ifft2c(kspace):
-    image = np.fft.ifft2(kspace, axes=(0, 1))
-    img = np.fft.ifftshift(image, axes=(0, 1))
+def ifft2c(kspace, dim=(0,1)):
+    img = fftshift(ifftn(ifftshift(kspace, axes=dim), axes=dim), axes=dim)
     return img
 
 
