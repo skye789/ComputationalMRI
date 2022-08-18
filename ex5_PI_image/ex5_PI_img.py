@@ -41,10 +41,10 @@ img_sumSquare = np.linalg.norm(m_coil_img,axis=2)
 
 #least square(match filter)
 def least_square(m_coil_img,c_coil_sen):
-    m_star_coil_img = m_coil_img.conjugate()
+    star_coil_sen = c_coil_sen.conjugate()
     f_img = np.zeros_like(c_coil_sen)
     for i in range(nc): # number of chanel
-        f_img[...,i] = m_star_coil_img[...,i] * c_coil_sen[...,i]
+        f_img[...,i] = m_coil_img[...,i] * star_coil_sen[...,i]
     img_sum = np.sum(f_img,axis=2)      #256×256
 
     coil_sen2D = np.linalg.norm(c_coil_sen,axis=2)+10**-5 #256×256
