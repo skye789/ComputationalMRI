@@ -2,7 +2,7 @@ Computational Magnetic Resonance Imaging
 ===
 Intruduction
 ---
-Computational MRI provides a deeper look into computational and machine learning methods  
+Computational MRI provides a deeper look into computational and machine learning methods 
 for the inverse problem of MRI data acquisition and image reconstruction.  
 The course is given by Florian Knoll https://med.nyu.edu/faculty/florian-knoll
 
@@ -14,7 +14,7 @@ Topics covered will include but are not limited to:
 · Partial Fourier imaging (Hermitian, Margosian, POCS)  
 · Non Cartesian (Radial-trajectory)  
 · Parallel imaging (SENSE, GRAPPA)  
-· Non-Cartesian Imaging and Iterative Reconstruction (NUFFT-toolbox, Conjungated Gradient)  
+· Non-Cartesian Imaging and Iterative Reconstruction (NUFFT-toolbox,Conjungated Gradient)  
 · Compressed sensing  
 · Machine Learning in MRI
 
