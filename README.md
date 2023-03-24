@@ -23,5 +23,5 @@ The effect of each method is shown in report and ''result'' folders.
 Reference
 ---
 The principle of each pethod can refer to : https://mriquestions.com/index.html  
-A good MRI tutorial(videos) in chinese: https://www.ym.edu.tw/~cflu/CFLu_course_mriprinp.html  
+A good MRI tutorial(videos) in chinese by Chia-Feng Lu(盧家鋒): http://cflu.lab.nycu.edu.tw/CFLu_links.html 
 The basic about MRI(pdf): https://www.cis.rit.edu/htbooks/mri/inside.htm
